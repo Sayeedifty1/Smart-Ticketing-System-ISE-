@@ -1,0 +1,175 @@
+// =============================================================================
+// Prisma Schema - Transit Ticketing System
+// =============================================================================
+// MongoDB provider for the Transit Ticketing prototype.
+// This file defines the database models used by Prisma.
+//
+// ⚠️ DATABASE CONNECTION
+// -----------------------------------------------------------------------------
+// Prisma connects to MongoDB using the DATABASE_URL from your .env file.
+// Example (see .env.example):
+//   DATABASE_URL="mongodb+srv://USERNAME:PASSWORD@cluster.mongodb.net/transitDB"
+//
+// ⚠️ If you change the database name, update DATABASE_URL in .env
+//    (the part after the last slash, e.g. `transitDB`).
+//    Also update username and password there if your MongoDB credentials change.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+// Enums are used to keep ticket and validation status values consistent.
+// They prevent using arbitrary strings in the database.
+
+/// Type of ticket purchased by a passenger.
+enum TicketType {
+  /// Single-use ticket for one ride or limited trip.
+  ONETIME
+
+  /// Monthly pass valid for unlimited use within a period.
+  MONTHLY
+}
+
+/// Lifecycle status of a ticket.
+enum TicketStatus {
+  /// Ticket has been issued but not yet used at all.
+  UNUSED
+
+  /// Ticket has been consumed / validated at entry.
+  USED
+
+  /// Ticket is no longer valid because its `validUntil` is in the past.
+  EXPIRED
+}
+
+/// Result of a ticket validation attempt.
+enum ValidationResult {
+  /// Access granted (ticket considered valid at the time of check).
+  GRANT
+
+  /// Access denied (e.g. invalid, expired, already used).
+  DENY
+}
+
+/// User's current subscription level (tracks what plan they have purchased).
+/// Used to show "Current plan" on dashboard and for business logic.
+enum UserPlan {
+  /// No active plan or ticket.
+  NONE
+
+  /// Has purchased at least one single-use ticket.
+  ONETIME
+
+  /// Has an active monthly pass.
+  MONTHLY
+}
+
+// =============================================================================
+// MODELS
+// =============================================================================
+// MongoDB-specific notes:
+// - `id` fields use String with @db.ObjectId to map to Mongo ObjectId values.
+// - `@map("_id")` tells Prisma that the Mongo document id is stored in `_id`.
+// - Relations are represented via foreign key ObjectId values (e.g. passengerId).
+
+/// Passenger represents a registered user who can log in and own tickets.
+model Passenger {
+  /// MongoDB ObjectId primary key for the passenger document.
+  id    String  @id @default(auto()) @map("_id") @db.ObjectId
+
+  /// Full name of the passenger (e.g. used for receipts or support).
+  name  String
+
+  /// Passenger's contact email; used for login. Unique so one account per email.
+  email String  @unique
+
+  /// Hashed password (never store plain text—hashing prevents leakage if DB is compromised).
+  password String
+
+  /// Simulates physical NFC card ID (e.g. "user1", "user2"); unique per user for validation tap.
+  nfcId String  @unique
+
+  /// Tracks which plan the user has purchased (NONE / ONETIME / MONTHLY) for dashboard and logic.
+  currentPlan UserPlan @default(NONE)
+
+  /// When the user was registered (for auditing and sorting).
+  createdAt DateTime @default(now())
+
+  /// All tickets owned by this passenger.
+  tickets Ticket[]
+}
+
+/// Ticket represents a travel authorization for a passenger.
+model Ticket {
+  /// MongoDB ObjectId primary key for the ticket document.
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  /// Ticket type (single-use vs monthly pass).
+  type TicketType
+
+  /// Current lifecycle status of the ticket.
+  /// This will be updated by validation logic later (e.g. UNUSED -> USED).
+  status TicketStatus
+
+  /// Cutoff date/time after which the ticket is considered invalid.
+  /// Validation logic will compare the current time against this field.
+  validUntil DateTime
+
+  /// Cryptographic-like signature simulating an NFC security token.
+  /// In a real system, this would be derived from secure hardware to
+  /// prevent cloning and tampering of ticket data.
+  signature String
+
+  /// Optional: city name for city-specific tickets (e.g. "Lemgo", "Berlin").
+  city String?
+
+  /// Foreign key reference to the owning passenger's ObjectId value.
+  passengerId String @db.ObjectId
+
+  /// Relation to the Passenger who owns this ticket.
+  passenger   Passenger @relation(fields: [passengerId], references: [id])
+
+  /// Validation attempts recorded for this ticket.
+  auditLogs AuditLog[]
+}
+
+/// AuditLog tracks each validation decision for a ticket.
+model AuditLog {
+  /// MongoDB ObjectId primary key for the audit log entry.
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  /// Timestamp of the validation event.
+  /// Defaults to the time when the record is created.
+  timestamp DateTime @default(now())
+
+  /// Result of the validation attempt (grant or deny access).
+  result ValidationResult
+
+  /// Human-readable reason for the decision.
+  /// Example: "Ticket expired", "Already used", "Valid".
+  reason String
+
+  /// Foreign key reference to the ticket that was validated (null when ticket not found).
+  ticketId String? @db.ObjectId
+
+  /// Relation to the Ticket associated with this audit log entry.
+  ticket Ticket? @relation(fields: [ticketId], references: [id])
+}
+
+// =============================================================================
+// NOTES
+// =============================================================================
+// - After modifying models or enums, run:
+//     npx prisma generate
+//   so the Prisma Client is updated.
+// - If you change the database name in MongoDB, remember to update
+//   DATABASE_URL in your .env file to point to the new database.

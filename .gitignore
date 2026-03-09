@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment (never commit secrets)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Build output
+dist/
+build/
+
+# Prisma (optional: uncomment if you don't want migrations in repo)
+# prisma/migrations/
+
+# Logs and debug
+*.log
+npm-debug.log*
+.DS_Store
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo

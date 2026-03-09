@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Environment (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Prisma
+prisma/migrations/
+
+# Logs
+*.log
+npm-debug.log*
+.vercel

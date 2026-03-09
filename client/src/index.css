@@ -1,0 +1,16 @@
+/**
+ * Global Styles
+ * -------------
+ * Tailwind directives. Custom CSS can be added below.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base layer - dark industrial transit theme background */
+@layer base {
+  body {
+    @apply bg-transit-dark text-gray-200 antialiased;
+  }
+}
